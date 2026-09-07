@@ -1,5 +1,6 @@
 #include <iostream>
 #include <GL/glew.h>
+#include <vector>
 #if defined(OPENGL_ENGINE_USE_GLFW) && OPENGL_ENGINE_USE_GLFW
 #if __has_include(<GLFW/glfw3.h>)
 #include <GLFW/glfw3.h>
@@ -42,6 +43,12 @@ int main()
         glfwTerminate();
         return -1;
     }
+
+	std::vector <float> vertices = {
+		0.0f, 0.5f, 0.0f, // Bottom-left vertex
+		 -0.5f, -0.5f, 0.0f, // Bottom-right vertex
+		 0.0f,  -0.5f, 0.0f  // Top vertex
+	};
 
 
     // Move the window to a visible position
