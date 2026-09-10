@@ -32,7 +32,7 @@ int main() // Entry point of the application
 #else
     if (!glfwInit())
     {
-        return -1;
+        return -1; 
     }
 
     // Configure GLFW window hints after initializing GLFW and before creating the window
@@ -61,12 +61,19 @@ int main() // Entry point of the application
     glViewport(0, 0, fbWidth, fbHeight);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 
-    // Equilateral triangle centered at the origin (centroid at 0,0)
-    // Height h = sqrt(3)/2; top vertex y = 2h/3 ~ 0.57735, base y = -h/3 ~ -0.288675
+    // Rectangle made from two triangles, centered at origin
+    // Each vertex: position (x,y,z) + color (r,g,b)
     std::vector<float> vertices = {
-        0.0f,  0.57735026919f, 0.0f,  // top vertex
-       -0.5f, -0.28867513459f, 0.0f,  // bottom-left vertex
-        0.5f, -0.28867513459f, 0.0f   // bottom-right vertex
+        -0.5f,  0.5f, 0.0f,  1.0f, 0.0f, 0.0f, // top-left (red)
+         0.5f,  0.5f, 0.0f,  0.0f, 1.0f, 0.0f, // top-right (green)
+         0.5f, -0.5f, 0.0f,  0.0f, 0.0f, 1.0f, // bottom-right (blue)
+        -0.5f, -0.5f, 0.0f,  1.0f, 1.0f, 0.0f  // bottom-left (yellow)
+    };
+
+    // Two triangles: (0,1,2) and (2,3,0)
+    std::vector<unsigned int> indices = {
+        0, 1, 2,
+        2, 3, 0
     };
 
 
@@ -77,18 +84,33 @@ int main() // Entry point of the application
     glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_STATIC_DRAW);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 
+	GLuint ebo;
+	glGenBuffers(1, &ebo);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), indices.data(), GL_STATIC_DRAW);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+
     GLuint vao;
     glGenVertexArrays(1, &vao);
     glBindVertexArray (vao);
     glBindBuffer(GL_ARRAY_BUFFER, vbo); 
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
 
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+
+    // Each vertex: 3 floats position, 3 floats color -> stride = 6 * sizeof(float)
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
+
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+
+
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 
-
+    // uniform location placeholder (will be set after shader program is linked)
+    GLint uColorLocation = -1;
 
     // Move the window to a visible position
     glfwSetWindowPos(window,500, 150);
@@ -96,9 +118,13 @@ int main() // Entry point of the application
 
     std::string vertexShaderSource = R"(#version 330 core
 layout (location = 0) in vec3 aPos;
+layout (location = 1) in vec3 aColor;
+out vec3 vColor; // output a color to the fragment shader
+
 void main()
 {
     gl_Position = vec4(aPos, 1.0);
+    vColor = aColor;
 }
 )";
 
@@ -125,9 +151,15 @@ void main()
 
     std::string fragmentShaderSource = R"(#version 330 core
 out vec4 FragColor;
+
+in vec3 vColor; // input color from the vertex shader
+uniform vec4 uColor; 
+
+
+
 void main()
 {
-    FragColor = vec4(1.0f, 0.0f, 0.0f, 1.0f);
+    FragColor = vec4(vColor, 1.0f) * uColor;
 }
 )";
 
@@ -166,8 +198,16 @@ void main()
 
         }
 
-		glDeleteShader(vertexShader); // Delete the vertex shader as it's no longer needed
-		glDeleteShader(fragmentShader); // Delete the fragment shader as it's no longer needed
+        // Use program and set initial uniform values
+        glUseProgram(shaderProgram);
+        uColorLocation = glGetUniformLocation(shaderProgram, "uColor");
+        if (uColorLocation != -1) {
+            // set uniform to white (no tint) by default
+            glUniform4f(uColorLocation, 1.0f, 1.0f, 1.0f, 1.0f);
+        }
+
+        glDeleteShader(vertexShader); // Delete the vertex shader as it's no longer needed
+        glDeleteShader(fragmentShader); // Delete the fragment shader as it's no longer needed
 
 
 
@@ -178,8 +218,11 @@ void main()
         glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
         glUseProgram(shaderProgram);
+        // If you want to change the tint at runtime, update uColorLocation here
         glBindVertexArray(vao);
-        glDrawArrays(GL_TRIANGLES, 0, 3);
+        // EBO is stored in the VAO; no need to bind it each frame, but binding is harmless
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+        glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(indices.size()), GL_UNSIGNED_INT, 0);
 
 
         glfwSwapBuffers(window);
