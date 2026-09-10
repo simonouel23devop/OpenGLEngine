@@ -17,6 +17,13 @@
 #endif
 
 
+// Callback to update viewport on window resize
+static void framebuffer_size_callback(GLFWwindow* /*window*/, int width, int height)
+{
+    glViewport(0, 0, width, height);
+}
+
+
 int main() // Entry point of the application
 {
 #if !GLFW_AVAILABLE
@@ -33,39 +40,67 @@ int main() // Entry point of the application
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-    GLFWwindow* window = glfwCreateWindow(1080, 720, "Open GL rendering Window", nullptr, nullptr);
-    if (window == nullptr)
-    {
+    GLFWwindow* window = glfwCreateWindow(1080, 720, "Open GL rendering engine", nullptr, nullptr);
+    if (window == nullptr) { glfwTerminate(); return -1; }
+
+    // Make the context current BEFORE any OpenGL calls
+    glfwMakeContextCurrent(window);
+
+    // Ensure GLEW uses modern techniques for managing OpenGL functionality
+    glewExperimental = GL_TRUE;
+
+    // Initialize GLEW AFTER making context current
+    if (glewInit() != GLEW_OK) {
         glfwTerminate();
         return -1;
     }
 
-	std::vector <float> vertices = {
-		0.0f, 0.5f, 0.0f, // Bottom-left vertex
-		 -0.5f, -0.5f, 0.0f, // Bottom-right vertex
-		 0.0f,  -0.5f, 0.0f  // Top vertex
-	};
+    // Set initial viewport size and register resize callback
+    int fbWidth, fbHeight;
+    glfwGetFramebufferSize(window, &fbWidth, &fbHeight);
+    glViewport(0, 0, fbWidth, fbHeight);
+    glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+
+    // Equilateral triangle centered at the origin (centroid at 0,0)
+    // Height h = sqrt(3)/2; top vertex y = 2h/3 ~ 0.57735, base y = -h/3 ~ -0.288675
+    std::vector<float> vertices = {
+        0.0f,  0.57735026919f, 0.0f,  // top vertex
+       -0.5f, -0.28867513459f, 0.0f,  // bottom-left vertex
+        0.5f, -0.28867513459f, 0.0f   // bottom-right vertex
+    };
+
+
+    // buffer
+    GLuint vbo; 
+    glGenBuffers(1, &vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_STATIC_DRAW);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+    GLuint vao;
+    glGenVertexArrays(1, &vao);
+    glBindVertexArray (vao);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo); 
+
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+
 
 
     // Move the window to a visible position
     glfwSetWindowPos(window,500, 150);
-    glfwMakeContextCurrent(window);
-
-	if (glewInit() != GLEW_OK)
-    {
-		glfwTerminate();
-		return -1;
-    }
 
 
-	std::string vertexShaderSource = R"( // Vertex shader source code
-        #version 330 core
-        layout (location = 0) in vec3 aPos;
-        void main()
-        {
-            gl_Position = vec4 (aPos.x, aPos.y , aPos.z, 1.0);
-        }
-    )";
+    std::string vertexShaderSource = R"(#version 330 core
+layout (location = 0) in vec3 aPos;
+void main()
+{
+    gl_Position = vec4(aPos, 1.0);
+}
+)";
 
 
 
@@ -88,13 +123,13 @@ int main() // Entry point of the application
 
     }
 
-    std::string fragmentShaderSource = R"( // Fragment shader source code
-        #version 330 core
-        out vec4 FragColor;
-        void main()
-        {
-            FragColor = vec4(1.0f, 0.0f, 0.0f, 1.0f);
-        })";
+    std::string fragmentShaderSource = R"(#version 330 core
+out vec4 FragColor;
+void main()
+{
+    FragColor = vec4(1.0f, 0.0f, 0.0f, 1.0f);
+}
+)";
 
 
 		GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
@@ -108,8 +143,9 @@ int main() // Entry point of the application
         {
 
             char infoLog[512]; // Buffer to hold the error message
-            glGetShaderInfoLog(vertexShader, 512, nullptr, infoLog); // Get the error message
-            std::cerr << "ERROR::SHADER::VERTEX::COMPILATION_FAILED\n" << infoLog << std::endl; // Print the error message
+            // Use fragmentShader when querying the fragment shader compile log
+            glGetShaderInfoLog(fragmentShader, 512, nullptr, infoLog); // Get the error message
+            std::cerr << "ERROR::SHADER::FRAGMENT::COMPILATION_FAILED\n" << infoLog << std::endl; // Print the error message
 
 
         }
@@ -138,8 +174,14 @@ int main() // Entry point of the application
 	while (!glfwWindowShouldClose(window)) // Main render loop
     {
         
-	    glClearColor(1.0f, 0.0f, 0.0f, 1.0f);
+        // Use a dark background so the red triangle is visible
+        glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
+        glUseProgram(shaderProgram);
+        glBindVertexArray(vao);
+        glDrawArrays(GL_TRIANGLES, 0, 3);
+
+
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
@@ -151,4 +193,4 @@ int main() // Entry point of the application
     glfwTerminate();
     return 0;
 #endif
-} 
+}
