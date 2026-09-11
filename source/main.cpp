@@ -16,12 +16,49 @@
 #define GLFW_AVAILABLE 0
 #endif
 
+struct Vec2
+{
+    float x = 0.0f;
+    float y = 0.0f;
+};
+Vec2 offset;
+
+void keycallback(GLFWwindow* window, int key, int scancode, int action, int mods)
+{
+	if (action == GLFW_PRESS) // Check if the key was pressed
+	    switch (key)
+	    {
+	    case GLFW_KEY_W:
+			offset.y += 0.1f; // Move up
+			std::cout << "UP key pressed" << std::endl;
+	    	break;
+        case GLFW_KEY_S:
+			offset.y -= 0.1f; // Move down
+               std::cout << "DOWN key pressed"<< std::endl;
+               break;
+      case GLFW_KEY_D:
+              offset.x += 0.1f; // Move right
+              std::cout << "RIGHT key pressed"<< std::endl;
+          break;
+         case GLFW_KEY_A:
+                offset.x -= 0.1f; // Move left
+                std::cout << "LEFT key pressed"<< std::endl;
+         break;
+	    default:
+		    break;
+	}
+}
+
+// (Vec2 and offset are declared above so the key callback can use them)
+
 
 // Callback to update viewport on window resize
 static void framebuffer_size_callback(GLFWwindow* /*window*/, int width, int height)
 {
     glViewport(0, 0, width, height);
 }
+
+
 
 
 int main() // Entry point of the application
@@ -42,6 +79,11 @@ int main() // Entry point of the application
 
     GLFWwindow* window = glfwCreateWindow(1080, 720, "Open GL rendering engine", nullptr, nullptr);
     if (window == nullptr) { glfwTerminate(); return -1; }
+
+    // Use the standalone keycallback so key presses (W/A/S/D) are printed to the console.
+    glfwSetKeyCallback(window, keycallback);
+
+
 
     // Make the context current BEFORE any OpenGL calls
     glfwMakeContextCurrent(window);
@@ -109,6 +151,9 @@ int main() // Entry point of the application
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 
+    GLint uOffsetLocation = -1; // will be queried after shader program is linked
+   
+
     // uniform location placeholder (will be set after shader program is linked)
     GLint uColorLocation = -1;
 
@@ -119,11 +164,16 @@ int main() // Entry point of the application
     std::string vertexShaderSource = R"(#version 330 core
 layout (location = 0) in vec3 aPos;
 layout (location = 1) in vec3 aColor;
+uniform vec2 uOffset; // uniform for offsetting the position
+
+
+
 out vec3 vColor; // output a color to the fragment shader
 
 void main()
 {
-    gl_Position = vec4(aPos, 1.0);
+    // add the 2D offset to the x,y components of the position
+    gl_Position = vec4(aPos + vec3(uOffset, 0.0), 1.0);
     vColor = aColor;
 }
 )";
@@ -206,6 +256,12 @@ void main()
             glUniform4f(uColorLocation, 1.0f, 1.0f, 1.0f, 1.0f);
         }
 
+        // Cache the location of the offset uniform and set initial value
+        uOffsetLocation = glGetUniformLocation(shaderProgram, "uOffset");
+        if (uOffsetLocation != -1) {
+            glUniform2f(uOffsetLocation, offset.x, offset.y);
+        }
+
         glDeleteShader(vertexShader); // Delete the vertex shader as it's no longer needed
         glDeleteShader(fragmentShader); // Delete the fragment shader as it's no longer needed
 
@@ -220,10 +276,13 @@ void main()
         glUseProgram(shaderProgram);
         // If you want to change the tint at runtime, update uColorLocation here
         glBindVertexArray(vao);
+        // update offset uniform before drawing
+        if (uOffsetLocation != -1) {
+            glUniform2f(uOffsetLocation, offset.x, offset.y);
+        }
         // EBO is stored in the VAO; no need to bind it each frame, but binding is harmless
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
         glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(indices.size()), GL_UNSIGNED_INT, 0);
-
 
         glfwSwapBuffers(window);
         glfwPollEvents();
