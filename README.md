@@ -1,3 +1,10 @@
+<img width="800" height="464" alt="New Project" src="https://github.com/user-attachments/assets/70cc5154-c891-4908-b5cc-ad05583bc2c6" />
+
+A snake game with OpenGL and c++
+
+
+
+
 GLFW is an Open Source, multi-platform library for OpenGL, OpenGL ES and Vulkan development on the desktop. It provides a simple API for creating windows, contexts and surfaces, receiving input and events.
 
 GLFW is written in C and supports Windows, macOS, Wayland and X11. https://www.glfw.org/
